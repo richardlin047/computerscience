@@ -1,5 +1,5 @@
 var bingMapsKey = 'Ah_C8OJJu8wnNX50rGHf8_OYKonuhZ-CfLQ-kXS-4tI-QsTN9pkLPPfgZgKigwa8';
-var cogServicesKey = '<YOUR KEY>';
+var cogServicesKey = 'ce760165826d4b319742334dfdf06310';
 
 
 
@@ -23,31 +23,31 @@ var cogServicesKey = '<YOUR KEY>';
  */
 
 var settings = {
-    route_mode: "walking",
+    route_mode: "driving",
     minute_distance: 20,
     distance: null,
     categories: {
-        // '90001':{name:"Arts & Entertainment", value: 2},
+        '90001':{name:"Arts & Entertainment", value: 2},
         // '90012':{name:"Attractions", value: 2},
         // '90016':{name:"Museums", value: 2},
         // '90111':{name:"Banking & Finance", value: 2},
         // '90353':{name:"Beauty & Spas", value: 2},
-        // '90232':{name:"Food & Drink Stores", value: 2},
-        // '90287':{name:"Restaurants", value: 2},
+        '90232':{name:"Food & Drink Stores", value: 2},
+        '90287':{name:"Restaurants", value: 2},
         // '90265':{name:"Fast Food Stores", value: 2},
-        // '90243':{name:"Bars", value: 2},
+        '90243':{name:"Bars", value: 2},
         '90243':{name:"Bars/Nightlife", value: 2},
-        '90870':{name:"Parks & Recreation", value: 2},
+        // '90870':{name:"Parks & Recreation", value: 2},
         // '90408':{name:"Medical Centers", value: 2},
-        '90408':{name:"Medical Care", value: 2},
+        // '90408':{name:"Medical Care", value: 2},
         // '90942':{name:"Animal & Pet Services", value: 2},
         // '90551':{name:"Child Care Services", value: 2},
-        '90738':{name:"Grocery", value: 2},
+        // '90738':{name:"Grocery", value: 2},
         // '91493':{name:"Supermarkets", value: 2},
         // '90932':{name:"Home & Garden Stores", value: 2},
         // '90793':{name:"Pet Supply Stores", value: 2},
         // '90771':{name:"Malls & Shopping Centers", value: 2},
-        '90771':{name:"Shopping", value: 2},
+        // '90771':{name:"Shopping", value: 2},
         // '91567':{name:"Park & Rides", value: 2},
         // '91510':{name:"Liquor & Wine Stores", value: 2},
         // '90727':{name:"Department Stores", value: 2},

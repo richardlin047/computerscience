@@ -60,6 +60,47 @@ function ClearMap() {
 
 
 ///// Get Neighborhood Data Here
+/**
+* Pulls the json file that contains the neighborhood data for the selected city.
+* Note that, in a real application, this data would be requested from a server.
+* (see the ChooseCity function)
+*
+* @param  {string} dataset - the name of the neighborhood json file
+* @public
+*/
+function GetCityData(dataset) {
+
+    city_listings = window["data_" + dataset];
+    GetNeighborhoods();
+
+    // If you are running this on a server, you can use this to pull the json data.
+
+    // jQuery.getJSON("./data/data_" + dataset + ".json", function(json) {
+    //     city_listings = json;
+    //     GetNeighborhoods();
+    // });
+}
+
+/**
+* Clears the Map of any existing pins.
+* Centers map at the selected city.
+* Calls the PlacePin function for each neighborhood in the city.
+* (see the GetCityData function)
+*
+* @private
+*/
+function GetNeighborhoods() {
+    ClearMap();
+
+    if (city_listings) {
+        CenterMap(settings.city);
+
+        var neighborhoods_list = Object.keys(city_listings);
+        for (var n=0; n<neighborhoods_list.length; n++) {
+            PlacePin(neighborhoods_list[n]);
+        }
+    }
+}
 
 
 
@@ -136,7 +177,7 @@ function PlacePin(neighborhood) {
                 };
 
                 //Call the Project Wollongong api for this neighborhood
-                // GetNeighborhoodScore(location, category_string, pins[neighborhood + settings.city]);
+                GetNeighborhoodScore(location, category_string, pins[neighborhood + settings.city]);
 
                 map.entities.push(pins[neighborhood + settings.city]);
             }
@@ -230,7 +271,7 @@ function ChooseCity(city_code) {
     }
 
     CenterMap(settings.city);
-    // GetCityData(city_code);
+    GetCityData(city_code);
 }
 
 
@@ -260,7 +301,42 @@ function CreateInfoBox() {
 
 
 /////// Create Slider Functions Here
+/**
+* For every category, a range slider is created and added to the "#categories" page.
+*
+* @param  {obj} b Data point
+* @return {funct}   Tween function
+* @private
+*/
+function CreateCategorySlidersList() {
+    var chart = jQuery("#categories");
 
+    var category_keys = Object.keys(settings.categories);
+
+    for (var i=0; i<category_keys.length; i++) {
+        chart.append(CreateCategorySlider(category_keys[i], settings.categories[category_keys[i]].name,  settings.categories[category_keys[i]].value));
+    }
+
+}
+
+/**
+* Creates one of the category sliders using the category_template.
+*
+* @param  {string} id - the category code used for the slider id.
+* @param  {string} name - the name of the category
+* @param  {int} value - the default value of the category
+* @return {obj} html object created.
+* @private
+*/
+function CreateCategorySlider(id, name, value) {
+    var slider = jQuery(category_template.replace('{id}', id).replace('{name}', name).replace('{value}', value));
+
+    jQuery("#"+id, slider).change(function () {
+        settings.categories[id].value = parseInt(this.value);
+    });
+
+    return slider;
+}
 
 
 
@@ -308,7 +384,7 @@ jQuery(document).ready(function () {
         jQuery("#toggle-nav").prop("checked", false);
         jQuery("#toggle-cities").prop("checked", false);
         if (jQuery("#toggle-categories").prop("checked")) {
-            // GetNeighborhoods();
+            GetNeighborhoods();
         }
     });
 
@@ -344,7 +420,7 @@ jQuery(document).ready(function () {
     });
 
     CreateCategoryString();
-    // CreateCategorySlidersList();
+    CreateCategorySlidersList();
 
 });
 
@@ -363,5 +439,120 @@ function Resize() {
 
 
 
+/**
+* Calls the Project Local Insights api for the requested location.
+* The sum of nearby locations for each category is used for the score of that category.
+* (see the PlacePin function)
+*
+* @param  {obj} location - location object returned from the Maps Search module
+* @param  {string} category - category string used in the Project Local Insights api call
+* @param  {obj} pin - the map pin connected to this location
+* @private
+*/
+function GetNeighborhoodScore(location, category, pin) {
 
+    var url = 'https://cognitivegarage.azure-api.net/BingMaps/NavJoin?startPoint='
+            + location.latitude + ',' + location.longitude
+            + '&routeMode=' + settings.route_mode
+            + '&categoryIds=' + category
+            // maxTime and maxDistance can be interchanged. (Distance is in km)
+            + (settings.minute_distance ? '&maxTime=' + settings.minute_distance : "")
+            + (settings.distance ? '&maxDistance=' + settings.distance : "");
+
+    jQuery.ajax({
+        type: "GET",
+        url: url,
+        headers: {
+            'Ocp-Apim-Subscription-Key': cogServicesKey
+        }
+    }).done(function(data) {
+        var result = data;
+        if (result.NavJoinCategoryResults) {
+            for (var i = 0; i<result.NavJoinCategoryResults.length; i++) {
+                var categoryId = result.NavJoinCategoryResults[i].CategoryId;
+                try {
+                    //The sum of nearby locations for this category becomes this category's score.
+                    pin.results[categoryId] = result.NavJoinCategoryResults[i].NavJoinEntities.length;
+                }
+                catch (err) {
+                    pin.results[categoryId] = 0;
+                }
+            }
+            CalculatePinScore(pin);
+        }
+    }).fail(function (error) {
+
+        console.error(error);
+
+        // A work around for a 429 error.
+        // (429 means there were too many api calls within a given period. This work around waits a second and then tries again.)
+        if (error.status == 429) {
+            setTimeout(function(){
+                GetNeighborhoodScore(location, category, pin);
+            },1000);
+        } else {
+            pin.setOptions({ color: "hsla(0, 96%, 19%, "+ .2 +")" });
+            pin.metadata.description = "<span class='error'>Match Score Error</span>";
+        }
+
+    });
+}
+/**
+* Calculates the score of this pin by adding up all of the pin's weighted category scores.
+* Updates all of the pins' colors based on their relative scores.
+* (see the GetNeighborhoodScore function)
+*
+* @param  {obj} pin - the pin to recieve a score.
+* @private
+*/
+function CalculatePinScore(pin) {
+
+    var score = 0;
+
+    var pin_keys = Object.keys(pins);
+    var category_results = Object.keys(pin.results);
+
+    var category_names = Object.keys(settings.categories);
+
+    for (var i=0; i<category_results.length; i++) {
+        //          The number of nearby locations * The priority of those locations (1-3)  * 10
+        score += (pin.results[category_results[i]] * settings.categories[category_results[i]].value) * 10;
+    }
+
+    pin.metadata.score = score;
+
+    max_score = Math.max(max_score, score);
+
+    UpdatePinColors();
+}
+
+/**
+* Updates all of the pins' colors based on their score compared to the highest score.
+*
+* @private
+*/
+function UpdatePinColors() {
+    var pin;
+    var description;
+    var pin_keys = Object.keys(pins);
+    for (var p=0; p<pin_keys.length; p++) {
+        pin = pins[pin_keys[p]];
+
+        if (pin.metadata.score >= 0) {
+            // if this pin's score is the best.
+            if (pin.metadata.score === max_score) {
+                pin.setOptions({
+                    color: "hsl(207, 98%, 43%)"
+                });
+                description = "<strong>Best Match</strong>";
+            } else {
+                pin.setOptions({
+                    color: "hsla(215, 96%, 19%, "+ (pin.metadata.score/max_score + .1) +")"
+                });
+                description = '<span class="debug">' + Math.round(100*pin.metadata.score/max_score) + "% Match</span>";
+            }
+            pin.metadata.description = description;
+        }
+    }
+}
 window.onresize = Resize;
